@@ -222,5 +222,9 @@ class CLI(lib.connection.Server):
     def add_command(self, command, function, usage):
         self.additional_commands[command] = {'function': function, 'usage': usage}
 
+    def remove_command(self, command):
+        if command in self.additional_commands:
+            del self.additional_commands[command]
+
     def ping(self, handler, parameter):
         handler.push("pong: {0}\n".format(parameter))
