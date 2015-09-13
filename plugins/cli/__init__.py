@@ -29,11 +29,12 @@ logger = logging.getLogger('')
 class CLIHandler(lib.connection.Stream):
     terminator = '\n'.encode()
 
-    def __init__(self, smarthome, sock, source, updates):
+    def __init__(self, smarthome, sock, source, updates, additional_commands):
         lib.connection.Stream.__init__(self, sock, source)
         self.source = source
         self.updates_allowed = updates
         self.sh = smarthome
+        self.additional_commands = additional_commands
         self.push("SmartHome.py v{0}\n".format(self.sh.version))
         self.push("Enter 'help' for a list of available commands.\n")
         self.push("> ")
@@ -72,6 +73,15 @@ class CLIHandler(lib.connection.Stream):
             self.push('bye\n')
             self.close()
             return
+        else:
+            for command, data in self.additional_commands.items():
+                if cmd.startswith(command):
+                    try:
+                        data['function'](self, cmd.lstrip(command).strip())
+                    except Exception as e:
+                        logger.exception(e)
+                        self.push("Exception \"{0}\" occured when executing command \"{1}\".\n".format(e, command))
+                        self.push("See smarthome.py log for details\n")
         self.push("> ")
 
     def cl(self):
@@ -182,24 +192,35 @@ class CLIHandler(lib.connection.Stream):
         self.push('quit: quit the session\n')
         self.push('q: alias for quit\n')
 
+        for command, data in self.additional_commands.items():
+            self.push(data['usage'] + '\n')
+
 
 class CLI(lib.connection.Server):
-
     def __init__(self, smarthome, update='False', ip='127.0.0.1', port=2323):
         lib.connection.Server.__init__(self, ip, port)
         self.sh = smarthome
         self.updates_allowed = smarthome.string2bool(update)
+        self.additional_commands = {}
 
     def handle_connection(self):
         sock, address = self.accept()
         if sock is None:
             return
         logger.debug("{}: incoming connection from {} to {}".format(self._name, address, self.address))
-        CLIHandler(self.sh, sock, address, self.updates_allowed)
+        CLIHandler(self.sh, sock, address, self.updates_allowed, self.additional_commands)
 
     def run(self):
         self.alive = True
+        self.add_command("ping", self.ping,
+                         "ping parameter: example for additional command. Just returns the given parameter")
 
     def stop(self):
         self.alive = False
         self.close()
+
+    def add_command(self, command, function, usage):
+        self.additional_commands[command] = {'function': function, 'usage': usage}
+
+    def ping(self, handler, parameter):
+        handler.push("pong: {0}\n".format(parameter))
