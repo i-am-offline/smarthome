@@ -438,6 +438,12 @@ class SmartHome():
         for plugin in self._plugins:
             yield plugin
 
+    def return_plugin(self, name):
+        for plugin in self._plugins:
+            if plugin.__class__.__name__ == name:
+                return plugin
+        return None
+
     #################################################################
     # Logic Methods
     #################################################################
